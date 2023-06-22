@@ -1,0 +1,148 @@
+---
+title: "Project"
+author: "T"
+date: "2023-06-22"
+output: html_document
+---
+
+```{r}
+# load libraries (quietly stops all the messages appearing)
+library(readr, quietly = TRUE)
+library(dplyr, quietly = TRUE)
+library(DT, quietly = TRUE)
+library(ggplot2)
+
+
+
+# load imdb and bechdel
+movies_imdb <- read_csv("https://raw.githubusercontent.com/andrewmoles2/rTrainIntroduction/main/r-data-wrangling-1/data/IMDb%20movies.csv")
+
+bechdel <- read_csv("https://raw.githubusercontent.com/andrewmoles2/rTrainIntroduction/main/r-data-wrangling-1/data/raw_bechdel.csv")
+
+# fix imdb id key
+movies_imdb$imdb_title_id <- parse_number(movies_imdb$imdb_title_id)
+
+# join data (left join)
+imdb_bechdel <- full_join(x = movies_imdb, y = bechdel,
+                          by = c("imdb_title_id" = "imdb_id", "year", "title"))
+imdb_bechdel
+
+Johnny_Depp7 <- imdb_bechdel %>% filter(grepl("Johnny Depp", actors)) %>% distinct(title, .keep_all = TRUE)
+Johnny_Depp7
+
+Johnny_plot <- ggplot(Johnny_Depp7, aes(x= year, y=title)) + geom_point(color= "purple") + geom_text(aes(label=avg_vote)) +labs(title = "Johnny Depp's Journey") + theme_minimal(base_size = 12)
+Johnny_plot
+
+
+```
+```{r}
+p <- ggplot(Johnny_Depp7, aes(x=year, y=title)) +  geom_col() + theme_minimal() +
+  theme(
+    axis.text = element_blank(),
+    axis.title = element_blank(),
+    panel.grid = element_blank(),
+    plot.margin = unit(rep(-2,4), "cm")) +  coord_polar(start = 0)
+p
+
+```
+```{r}
+
+my_palette <- c("#B0F2B4", "#CEF9FF", "#FFCAD4", "#B5838D", "#F4D35E")
+
+
+
+
+ggplot(Johnny_Depp7, aes(x = title, y = avg_vote, fill = avg_vote)) +
+  geom_bar(stat = "identity", width = 1, alpha = 0.7) + ylim(-5,75) +
+  scale_fill_gradient(
+    low = my_palette[1],    
+    high = my_palette[length(my_palette)],   
+    na.value = "transparent"    
+  ) +
+  coord_polar(start = 0) +
+  theme_void()
+
+
+```
+```{r}
+
+Johnny_Depp7 <- Johnny_Depp7 %>%
+  mutate(group = case_when(
+    year >= 1980 & year <= 1989 ~ "1980-1989",
+    year >= 1990 & year <= 1999 ~ "1990-1999",
+    year >= 2000 & year <= 2009 ~ "2000-2009",
+    year >= 2010 & year <= 2022 ~ "2010-2022"
+  ))
+
+Johnny_Depp7 <- Johnny_Depp7 %>%
+  arrange(group, desc(avg_vote))
+
+ggplot(Johnny_Depp7, aes(x = title, y = avg_vote, fill = group)) +
+  geom_bar(stat = "identity", width = 1, alpha = 0.7) +
+  coord_polar() +
+ scale_fill_manual(values = c("#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0")) +
+  labs(x = "Title", y = "Average Vote") +
+  theme_void() +
+  theme(legend.position = "right")
+
+```
+```{r}
+# Filter data for Johnny Depp movies
+johnny_depp_movies <- Johnny_Depp7
+
+
+
+
+# Group the data into four categories: 1980-1989, 1990-1999, 2000-2009, 2010-2022
+johnny_depp_movies <- johnny_depp_movies %>%
+  mutate(Years = case_when(
+    year >= 1980 & year <= 1989 ~ "1980-1989",
+    year >= 1990 & year <= 1999 ~ "1990-1999",
+    year >= 2000 & year <= 2009 ~ "2000-2009",
+    year >= 2010 & year <= 2019 ~ "2010-2019", year >= 2020 & year <= 2022 ~ "2020-2022",
+  ))
+johnny_depp_movies <- johnny_depp_movies %>%
+  arrange(Years, desc(avg_vote))
+
+# Set a number of 'empty bar' to add at the end of each group
+empty_bar <- 3
+to_add <- data.frame(matrix(NA, empty_bar * nlevels(johnny_depp_movies$group), ncol(johnny_depp_movies)))
+colnames(to_add) <- colnames(johnny_depp_movies)
+to_add$group <- rep(levels(johnny_depp_movies$group), each = empty_bar)
+johnny_depp_movies <- rbind(johnny_depp_movies, to_add)
+johnny_depp_movies <- johnny_depp_movies %>% arrange(Years)
+johnny_depp_movies$id <- seq(1, nrow(johnny_depp_movies))
+
+# Get the name and the y position of each label
+label_data <- johnny_depp_movies
+number_of_bar <- nrow(label_data)
+angle <- 90 - 360 * (label_data$id - 0.5) / number_of_bar
+label_data$hjust <- ifelse(angle < -90, 1, 0)
+label_data$angle <- ifelse(angle < -90, angle + 180, angle)
+
+# Make the plot
+JD <- ggplot(johnny_depp_movies, aes(x = as.factor(id), y = avg_vote, fill = Years)) +
+  geom_bar(stat = "identity", alpha = 0.5) +
+  ylim(-10, 30) + scale_fill_manual(values = c( "#00bbf9", "#00f5d4", "#F15bB5", "#Fb8b24", "#Fee440"))+
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    axis.text = element_blank(),
+    axis.title = element_blank(),
+    panel.grid = element_blank(),
+    plot.margin = unit(rep(1, 4), "cm")
+  ) +
+  coord_polar() +
+  geom_text(data = label_data, aes(x = id, y = avg_vote +0.2, label = title, hjust = hjust), color = "black", fontface = "bold", alpha = 0.6, size = 3.5, angle = label_data$angle, inherit.aes = FALSE) + labs(title = "Johnny Depp: Performance Journey", caption = "Source: IMDB")
+
+JD
+
+ggsave(filename = "JD.png", JD, units = "px", width=3500, height=3000, bg = "ivory")
+```
+```{r}
+
+```
+
+
+
+
