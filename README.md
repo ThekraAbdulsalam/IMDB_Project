@@ -2,4 +2,3 @@
 
 A plot to show Johnny Depp movie performance throughout his career 
 
-![](JD.png)
